@@ -3,17 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>多商家盤點工具</title>
+<title>多商家盤點叫貨系統</title>
+
+<!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React + Babel -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<!-- Firebase Compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+
 <style>
-  body { font-family: 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; background:#f8fafc; }
-  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button {-webkit-appearance:none;margin:0;}
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .custom-scrollbar::-webkit-scrollbar { width: 4px; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 </style>
@@ -24,30 +34,25 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 
-// --- Firebase 配置 ---
-const firebaseConfig = {
-  apiKey: "你的API_KEY",
-  authDomain: "你的PROJECT.firebaseapp.com",
-  projectId: "你的PROJECT",
-  storageBucket: "你的PROJECT.appspot.com",
-  messagingSenderId: "你的ID",
-  appId: "你的APPID",
-  databaseURL: "你的RealtimeDB_URL"
-};
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+// --- Firebase 設定 ---
+if (!firebase.apps.length) firebase.initializeApp({
+  apiKey: "AIzaSyCiWs5ZtstLxSSLQHufvnrWilnnGADFbEI",
+  authDomain: "ngdd-8dd14.firebaseapp.com",
+  projectId: "ngdd-8dd14",
+  storageBucket: "ngdd-8dd14.firebasestorage.app",
+  messagingSenderId: "780195335307",
+  appId: "1:780195335307:web:c6e95d1e0a7ee92cf3588e",
+  databaseURL: "https://ngdd-8dd14-default-rtdb.firebaseio.com"
+});
 const db = firebase.database();
 
-// Lucide Icon
-const Icon = ({ name, size=18, className="" }) => {
-  useEffect(() => { window.lucide?.createIcons({attrs:{class:className,'stroke-width':2.5,width:size,height:size},nameAttr:'data-lucide'}); }, [name,size,className]);
+// Lucide Icon component
+const Icon = ({ name, size = 18, className = "" }) => {
+  useEffect(() => { if (window.lucide) window.lucide.createIcons({ attrs: { class: className, 'stroke-width': 2.5, width: size, height: size }, nameAttr: 'data-lucide' }); }, [name, size, className]);
   return <i data-lucide={name} className={className}></i>;
 };
 
 const App = () => {
-  // 商家、分類
-  const [merchant, setMerchant] = useState('merchant_NGD');
-  const [category, setCategory] = useState('veg');
-
   const [mode, setMode] = useState('inventory'); // inventory / settings
   const [dayType, setDayType] = useState('weekday'); // weekday / weekend
   const [items, setItems] = useState([]);
@@ -55,18 +60,10 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
 
-  const firebasePath = `inventory_tool/${merchant}/${category}`;
-
-  // 初始化資料
+  // 監聽 Firebase 資料
   useEffect(() => {
-    const ref = db.ref(firebasePath);
-    ref.once('value', snapshot => {
-      if (!snapshot.exists()) {
-        // 節點不存在就初始化
-        ref.set({ items: [], stockCounts: {} });
-      }
-    });
-    ref.on('value', snapshot => {
+    const dataRef = db.ref('inventory_tool');
+    dataRef.on('value', snapshot => {
       const val = snapshot.val();
       if (val) {
         setItems(val.items || []);
@@ -74,164 +71,170 @@ const App = () => {
       }
       setLoading(false);
     });
-    return () => ref.off();
-  }, [merchant, category]);
+    return () => dataRef.off();
+  }, []);
 
   const syncToCloud = (newItems, newCounts) => {
-    db.ref(firebasePath).update({ items: newItems, stockCounts: newCounts });
+    db.ref('inventory_tool').update({ items: newItems, stockCounts: newCounts });
   };
 
   const addItem = () => {
-    const newItem = { id: Date.now(), name:'', weekdayMin:0, weekendMin:0, unit:'', shouldRound:false };
-    const updated = [...items,newItem];
-    setItems(updated); syncToCloud(updated, stockCounts);
+    const newItem = { id: Date.now(), name: '', weekdayMin: 0, weekendMin: 0, unit: '', shouldRound: false };
+    const updatedItems = [...items, newItem];
+    setItems(updatedItems);
+    syncToCloud(updatedItems, stockCounts);
     setMode('settings');
   };
 
   const updateItem = (id, field, value) => {
-    const updated = items.map(i=>i.id===id?{...i,[field]:value}:i);
-    setItems(updated); syncToCloud(updated, stockCounts);
+    const updatedItems = items.map(i => i.id === id ? { ...i, [field]: value } : i);
+    setItems(updatedItems);
+    syncToCloud(updatedItems, stockCounts);
   };
 
   const deleteItem = (id) => {
-    if(confirm('確定刪除品項？')){
-      const updated = items.filter(i=>i.id!==id);
-      const newCounts = {...stockCounts}; delete newCounts[id];
-      setItems(updated); setStockCounts(newCounts); syncToCloud(updated,newCounts);
+    if(confirm('確定刪除此品項？')) {
+      const updatedItems = items.filter(i => i.id !== id);
+      const newCounts = {...stockCounts};
+      delete newCounts[id];
+      setItems(updatedItems);
+      setStockCounts(newCounts);
+      syncToCloud(updatedItems, newCounts);
     }
   };
 
-  const calculateNeed = (item, currentStockStr) => {
-    const currentStock = parseFloat(currentStockStr||0);
-    const min = dayType==='weekday'?item.weekdayMin:item.weekendMin;
+  const calculateNeed = (item, stock) => {
+    const currentStock = parseFloat(stock || 0);
+    const min = dayType === 'weekday' ? item.weekdayMin : item.weekendMin;
     let need = min - currentStock;
-    if (need<=0 || isNaN(need)) return 0;
+    if (need <= 0 || isNaN(need)) return 0;
     return item.shouldRound ? Math.round(need) : parseFloat(need.toFixed(2));
   };
 
-  const orderList = useMemo(()=>{
-    return items.map(item=>{
-      const need = calculateNeed(item, stockCounts[item.id]);
-      return need>0?{name:item.name,need,unit:item.unit}:null;
-    }).filter(Boolean);
-  },[items,stockCounts,dayType]);
+  const orderList = useMemo(() => items.map(item => {
+    const need = calculateNeed(item, stockCounts[item.id]);
+    return need > 0 ? { name: item.name, need, unit: item.unit } : null;
+  }).filter(Boolean), [items, stockCounts, dayType]);
 
   const copyOrder = () => {
-    const label = dayType==='weekday'?'平日':'假日';
-    const summary = orderList.map(i=>`${i.name}: ${i.need} ${i.unit}`).join('\n');
-    const text = summary?`【${label}補貨清單】\n${summary}`:'無需補貨';
-    const ta = document.createElement("textarea"); ta.value=text;
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    setShowCopySuccess(true); setTimeout(()=>setShowCopySuccess(false),2000);
+    const label = dayType === 'weekday' ? '平日' : '假日';
+    const summary = orderList.map(i => `${i.name}:  ${i.need} ${i.unit}`).join('\n');
+    const text = summary ? `【${label}補貨清單】\n${summary}` : "無需補貨";
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    setShowCopySuccess(true);
+    setTimeout(() => setShowCopySuccess(false), 2000);
   };
 
   const clearCounts = () => {
-    if(confirm('確定清空所有輸入數值？')) { setStockCounts({}); syncToCloud(items, {}); }
+    if(confirm('確定要清空目前所有輸入的數值嗎？')) {
+      setStockCounts({});
+      syncToCloud(items, {});
+    }
   };
 
-  if(loading) return <div className="flex h-screen items-center justify-center text-slate-400 font-bold animate-pulse">盤點資料讀取中...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center text-slate-400 font-bold animate-pulse">盤點資料讀取中...</div>;
 
   return (
     <div className="min-h-screen flex flex-col max-w-2xl mx-auto bg-white shadow-2xl overflow-hidden">
       <header className="bg-slate-900 text-white p-4 sticky top-0 z-20 shadow-lg">
         <div className="flex justify-between items-center mb-3">
           <h1 className="text-lg font-bold flex items-center gap-2 tracking-tight">
-            <Icon name="calculator" className="text-blue-400" size={20}/> 盤點工具
+            <Icon name="calculator" className="text-blue-400" size={20} /> 盤點計算工具
           </h1>
           <div className="flex gap-2">
-            {mode==='inventory' && <button onClick={clearCounts} className="p-2 bg-slate-800 rounded-lg text-slate-400 active:text-white"><Icon name="rotate-ccw" size={16}/></button>}
-            <button onClick={()=>setMode(mode==='inventory'?'settings':'inventory')} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-md">
-              <Icon name={mode==='inventory'?"settings":"check"} size={14}/>
-              {mode==='inventory'?"管理品項":"完成設定"}
+            {mode === 'inventory' && <button onClick={clearCounts} className="p-2 bg-slate-800 rounded-lg text-slate-400 active:text-white"><Icon name="rotate-ccw" size={16} /></button>}
+            <button onClick={() => setMode(mode === 'inventory' ? 'settings' : 'inventory')} className="bg-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-md">
+              <Icon name={mode === 'inventory' ? "settings" : "check"} size={14} />{mode === 'inventory' ? "管理品項" : "完成設定"}
             </button>
           </div>
         </div>
         <div className="flex bg-slate-800 p-1 rounded-lg">
-          <button onClick={()=>setDayType('weekday')} className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${dayType==='weekday'?'bg-slate-700 text-blue-400 shadow-sm':'text-slate-500'}`}>平日 (一~五)</button>
-          <button onClick={()=>setDayType('weekend')} className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${dayType==='weekend'?'bg-slate-700 text-orange-400 shadow-sm':'text-slate-500'}`}>假日 (六~日)</button>
+          <button onClick={() => setDayType('weekday')} className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${dayType === 'weekday' ? 'bg-slate-700 text-blue-400 shadow-sm' : 'text-slate-500'}`}>平日 (一~五)</button>
+          <button onClick={() => setDayType('weekend')} className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${dayType === 'weekend' ? 'bg-slate-700 text-orange-400 shadow-sm' : 'text-slate-500'}`}>假日 (六~日)</button>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto custom-scrollbar p-3">
-        {mode==='inventory'?(
+        {mode === 'inventory' ? (
           <div className="divide-y divide-slate-100">
-            {items.length===0?(
+            {items.length === 0 ? (
               <div className="py-20 text-center text-slate-400 text-sm italic">請點擊右上方「管理」新增品項</div>
-            ):(
-              items.map(item=>{
-                const need = calculateNeed(item, stockCounts[item.id]);
-                const isShort = need>0;
-                return (
-                  <div key={item.id} className={`py-3 flex items-center gap-3 ${isShort?'bg-orange-50/30':''}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-bold text-sm truncate ${isShort?'text-orange-700':'text-slate-700'}`}>{item.name}</span>
-                        <span className="text-[10px] text-slate-400 whitespace-nowrap">標: {dayType==='weekday'?item.weekdayMin:item.weekendMin}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 w-48 justify-end">
-                      <div className="relative w-24">
-                        <input type="number" inputMode="decimal" placeholder="現存"
-                          value={stockCounts[item.id]||''}
-                          onChange={(e)=>{ const newCounts = {...stockCounts,[item.id]:e.target.value}; setStockCounts(newCounts); syncToCloud(items,newCounts); }}
-                          className="w-full bg-slate-100 border-none rounded-lg py-1.5 px-2 text-right text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">{item.unit}</span>
-                      </div>
-                      <div className={`w-14 text-center font-black text-sm ${isShort?'text-red-500':'text-slate-200'}`}>{isShort?`+${need}`:'OK'}</div>
+            ) : items.map(item => {
+              const need = calculateNeed(item, stockCounts[item.id]);
+              const isShort = need > 0;
+              return (
+                <div key={item.id} className={`py-3 flex items-center gap-3 ${isShort ? 'bg-orange-50/30' : ''}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold text-sm truncate ${isShort ? 'text-orange-700' : 'text-slate-700'}`}>{item.name}</span>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">標: {dayType === 'weekday' ? item.weekdayMin : item.weekendMin}</span>
                     </div>
                   </div>
-                );
-              })
-            )}
+                  <div className="flex items-center gap-2 w-48 justify-end">
+                    <div className="relative w-24">
+                      <input type="number" inputMode="decimal" placeholder="現存" value={stockCounts[item.id] || ''} onChange={e => { const newCounts = {...stockCounts, [item.id]: e.target.value}; setStockCounts(newCounts); syncToCloud(items, newCounts); }} className="w-full bg-slate-100 border-none rounded-lg py-1.5 px-2 text-right text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"/>
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">{item.unit}</span>
+                    </div>
+                    <div className={`w-14 text-center font-black text-sm ${isShort ? 'text-red-500' : 'text-slate-200'}`}>{isShort ? `+${need}` : 'OK'}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ):(
+        ) : (
           <div className="space-y-3 pb-10">
-            {items.map(item=>(
+            {items.map(item => (
               <div key={item.id} className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 relative shadow-sm">
                 <div className="flex gap-2">
-                  <input value={item.name} onChange={(e)=>updateItem(item.id,'name',e.target.value)} placeholder="品項名稱" className="flex-1 font-bold border-b border-slate-100 focus:border-blue-500 outline-none text-sm"/>
-                  <input value={item.unit} onChange={(e)=>updateItem(item.id,'unit',e.target.value)} placeholder="單位" className="w-12 bg-slate-50 rounded text-center text-xs p-1 outline-none"/>
-                  <button onClick={()=>deleteItem(item.id)} className="text-slate-300 active:text-red-500"><Icon name="trash-2" size={14}/></button>
+                  <input value={item.name} onChange={e => updateItem(item.id, 'name', e.target.value)} placeholder="品項名稱" className="flex-1 font-bold border-b border-slate-100 focus:border-blue-500 outline-none text-sm"/>
+                  <input value={item.unit} onChange={e => updateItem(item.id, 'unit', e.target.value)} placeholder="單位" className="w-12 bg-slate-50 rounded text-center text-xs p-1 outline-none"/>
+                  <button onClick={() => deleteItem(item.id)} className="text-slate-300 active:text-red-500"><Icon name="trash-2" size={14}/></button>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex gap-2">
                     <div className="flex-1">
                       <span className="text-[9px] text-blue-500 font-bold block">平日標</span>
-                      <input type="number" value={item.weekdayMin} onChange={(e)=>updateItem(item.id,'weekdayMin',parseFloat(e.target.value)||0)} className="w-full bg-slate-50 rounded p-1 text-xs font-bold outline-none"/>
+                      <input type="number" value={item.weekdayMin} onChange={e => updateItem(item.id, 'weekdayMin', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 rounded p-1 text-xs font-bold outline-none"/>
                     </div>
                     <div className="flex-1">
                       <span className="text-[9px] text-orange-500 font-bold block">假日標</span>
-                      <input type="number" value={item.weekendMin} onChange={(e)=>updateItem(item.id,'weekendMin',parseFloat(e.target.value)||0)} className="w-full bg-slate-50 rounded p-1 text-xs font-bold outline-none"/>
+                      <input type="number" value={item.weekendMin} onChange={e => updateItem(item.id, 'weekendMin', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 rounded p-1 text-xs font-bold outline-none"/>
                     </div>
                   </div>
-                  <button onClick={()=>updateItem(item.id,'shouldRound',!item.shouldRound)} className={`px-2 py-1 rounded text-[9px] font-bold transition-all ${item.shouldRound?'bg-green-100 text-green-600 ring-1 ring-green-200':'bg-slate-100 text-slate-400'}`}>四捨五入</button>
+                  <button onClick={() => updateItem(item.id, 'shouldRound', !item.shouldRound)} className={`px-2 py-1 rounded text-[9px] font-bold transition-all ${item.shouldRound ? 'bg-green-100 text-green-600 ring-1 ring-green-200' : 'bg-slate-100 text-slate-400'}`}>四捨五入</button>
                 </div>
               </div>
             ))}
             <button onClick={addItem} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold flex items-center justify-center gap-2 text-sm">
-              <Icon name="plus" size={16}/> 新增品項
+              <Icon name="plus" size={16} /> 新增品項
             </button>
           </div>
         )}
       </main>
 
-      {mode==='inventory' && <footer className="bg-slate-50 border-t border-slate-200 shadow-inner">
-        <div className="px-4 py-3">
-          <div className="bg-white border border-slate-200 rounded-lg p-2 max-h-24 overflow-y-auto custom-scrollbar mb-3">
-            {orderList.length>0?(
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
-                {orderList.map((i,idx)=>(
-                  <span key={idx} className="text-xs text-slate-700 font-medium">{i.name} <span className="text-red-500 font-bold">+{i.need}</span><span className="text-[10px] text-slate-400">{i.unit}</span></span>
-                ))}
-              </div>
-            ):<p className="text-[10px] text-center text-slate-300 py-2">目前無缺貨品項</p>}
+      {mode === 'inventory' && (
+        <footer className="bg-slate-50 border-t border-slate-200 shadow-inner">
+          <div className="px-4 py-3">
+            <div className="bg-white border border-slate-200 rounded-lg p-2 max-h-24 overflow-y-auto custom-scrollbar mb-3">
+              {orderList.length > 0 ? (
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {orderList.map((i, idx) => (
+                    <span key={idx} className="text-xs text-slate-700 font-medium">{i.name} <span className="text-red-500 font-bold">+{i.need}</span><span className="text-[10px] text-slate-400">{i.unit}</span></span>
+                  ))}
+                </div>
+              ) : <p className="text-[10px] text-center text-slate-300 py-2">目前無缺貨品項</p>}
+            </div>
+            <button onClick={copyOrder} disabled={orderList.length === 0} className={`w-full py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 ${showCopySuccess ? 'bg-green-500' : (orderList.length>0 ? (dayType==='weekday'?'bg-blue-600':'bg-orange-600'):'bg-slate-300')}`}>
+              <Icon name={showCopySuccess ? "check" : "copy"} size={16}/> {showCopySuccess ? "已成功複製" : "一鍵複製補貨清單"}
+            </button>
           </div>
-          <button onClick={copyOrder} disabled={orderList.length===0} className={`w-full py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 ${showCopySuccess?'bg-green-500':(orderList.length>0?(dayType==='weekday'?'bg-blue-600':'bg-orange-600'):'bg-slate-300')}`}>
-            <Icon name={showCopySuccess?"check":"copy"} size={16}/>{showCopySuccess?"已成功複製":"一鍵複製補貨清單"}
-          </button>
-        </div>
-      </footer>}
+        </footer>
+      )}
     </div>
   );
 };

@@ -20,7 +20,7 @@ input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 <div id="root" class="p-4 max-w-xl mx-auto"></div>
 
 <script>
-/* Firebase */
+/* Firebase 初始化 */
 firebase.initializeApp({
   apiKey: "AIzaSyCu_W2qzTZTMm0cOh1Gc7ys8uDKJEkzD7M",
   authDomain: "all-sun-e7472.firebaseapp.com",
@@ -37,18 +37,16 @@ let stockCounts = {};
 let dayType = 'weekday';
 let managementMode = false;
 
-/* ✅ 網址參數 */
+/* 讀取網址參數 */
 const params = new URLSearchParams(window.location.search);
 const merchantFromUrl = params.get('merchant');
-const pageId = params.get('page') || 'main'; // 每個網頁獨立的資料分頁
+const pageId = params.get('page') || Date.now(); // 不帶 page 參數自動生成唯一ID
 
-if (merchantFromUrl) {
-  currentMerchant = merchantFromUrl;
-}
+if (merchantFromUrl) currentMerchant = merchantFromUrl;
 
 const root = document.getElementById('root');
 
-/* ===== 商家 ===== */
+/* ===== 商家資料 ===== */
 function loadMerchants() {
   db.ref('inventory_tool/merchants').once('value').then(snap => {
     const v = snap.val();
@@ -70,6 +68,7 @@ function loadMerchants() {
 }
 
 function getDbPath() {
+  // 每個網頁對應獨立資料路徑
   return 'inventory_tool/' + currentMerchant + '/' + pageId;
 }
 
@@ -86,7 +85,7 @@ function syncCloud() {
   db.ref(getDbPath()).set({ items, stockCounts });
 }
 
-/* ===== 計算補貨 ===== */
+/* ===== 計算補貨量 ===== */
 function calculateNeed(item, stock) {
   const current = parseFloat(stock) || 0;
   const min = dayType === 'weekday'
@@ -96,7 +95,7 @@ function calculateNeed(item, stock) {
   return need > 0 ? need : 0;
 }
 
-/* ===== UI ===== */
+/* ===== UI 渲染 ===== */
 function render() {
   root.innerHTML = `
     <div class="flex gap-2 mb-3">
@@ -158,7 +157,6 @@ function render() {
   `;
 }
 
-/* ===== 補貨清單 ===== */
 function renderOrderList() {
   const list = [];
   items.forEach(item => {
